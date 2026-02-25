@@ -4246,3 +4246,16 @@ impl PrimitiveElement for () {
         Void
     }
 }
+
+#[cfg(feature = "sync_reader")]
+unsafe impl<'a> Send for StructReader<'a> {}
+#[cfg(feature = "sync_reader")]
+unsafe impl<'a> Sync for StructReader<'a> {}
+#[cfg(feature = "sync_reader")]
+unsafe impl<'a> Send for ListReader<'a> {}
+#[cfg(feature = "sync_reader")]
+unsafe impl<'a> Sync for ListReader<'a> {}
+#[cfg(feature = "sync_reader")]
+unsafe impl<'a> Send for PointerReader<'a> {}
+#[cfg(feature = "sync_reader")]
+unsafe impl<'a> Sync for PointerReader<'a> {}
