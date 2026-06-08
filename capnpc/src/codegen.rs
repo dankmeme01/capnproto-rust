@@ -131,6 +131,16 @@ impl CodeGenerationCommand {
             let root_name = path_to_stem_string(&filepath)?.replace('-', "_");
             filepath.set_file_name(format!("{root_name}_capnp.rs"));
 
+            let capnp_version = match ctx.request.get_capnp_version() {
+                Ok(version) => format!(
+                    "{}.{}.{}",
+                    version.get_major(),
+                    version.get_minor(),
+                    version.get_micro()
+                ),
+                Err(_) => "<unknown>".to_owned(),
+            };
+
             let lines =
                 Branch(vec![
                 Line(
@@ -139,6 +149,8 @@ impl CodeGenerationCommand {
                 ),
                 line("// DO NOT EDIT."),
                 Line(format!("// source: {}", requested_file.get_filename()?.to_str()?)),
+                Line(format!("// capnp binary version: {}", capnp_version)),
+                Line(format!("// capnpc crate version: {}", env!("CARGO_PKG_VERSION"))),
                 BlankLine,
                 generate_node(&ctx, id, &root_name)?,
             ]);
@@ -485,7 +497,7 @@ fn to_lines(ft: &FormattedText, indent: usize) -> Vec<String> {
         Indent(ft) => to_lines(ft, indent + 1),
         Branch(fts) => fts.iter().flat_map(|ft| to_lines(ft, indent)).collect(),
         Line(s) => {
-            let mut s1: String = " ".repeat(indent * 2);
+            let mut s1: String = " ".repeat(indent * 4);
             s1.push_str(s);
             vec![s1.to_string()]
         }
@@ -811,10 +823,10 @@ pub fn getter_text(
                 }
                 (type_::Enum(_), value::Enum(d)) => {
                     if d == 0 {
-                        format!("::core::convert::TryInto::try_into(self.{member}.get_data_field::<u16>({offset}))")
+                        format!("::core::convert::TryFrom::try_from(self.{member}.get_data_field::<u16>({offset}))")
                     } else {
                         format!(
-                                "::core::convert::TryInto::try_into(self.{member}.get_data_field_mask::<u16>({offset}, {d}))")
+                                "::core::convert::TryFrom::try_from(self.{member}.get_data_field_mask::<u16>({offset}, {d}))")
                     }
                 }
 
@@ -827,7 +839,9 @@ pub fn getter_text(
                             ctx,
                             &default_name,
                             ::capnp::raw::get_struct_pointer_section(default_value).get(0),
-                            crate::pointer_constants::WordArrayDeclarationOptions { public: true },
+                            crate::pointer_constants::WordArrayDeclarationOptions {
+                                pub_crate: true,
+                            },
                         )?);
                         format!("::core::option::Option::Some(&_private::{default_name}[..])")
                     } else {
@@ -1687,7 +1701,7 @@ fn generate_get_field_types(
         Ok(Branch(vec![
             Line(fmt!(
                 ctx,
-                "pub fn get_field_types(index: u16) -> {capnp}::introspect::Type {{"
+                "pub(crate) fn get_field_types(index: u16) -> {capnp}::introspect::Type {{"
             )),
             indent(body),
             Line("}".into()),
@@ -1697,7 +1711,7 @@ fn generate_get_field_types(
         Ok(Branch(vec![
             Line(fmt!(
                 ctx,
-                "pub fn get_field_types<{0}>(index: u16) -> {capnp}::introspect::Type {1} {{",
+                "pub(crate) fn get_field_types<{0}>(index: u16) -> {capnp}::introspect::Type {1} {{",
                 params.params,
                 params.where_clause
             )),
@@ -1796,7 +1810,7 @@ fn generate_get_annotation_types(
 
     if !node_reader.get_is_generic() {
         Ok(Branch(vec![
-            Line(fmt!(ctx,"pub fn get_annotation_types(child_index: Option<u16>, index: u32) -> {capnp}::introspect::Type {{")),
+            Line(fmt!(ctx,"pub(crate) fn get_annotation_types(child_index: Option<u16>, index: u32) -> {capnp}::introspect::Type {{")),
             indent(body),
             Line("}".into()),
         ]))
@@ -1804,7 +1818,7 @@ fn generate_get_annotation_types(
         let params = node_reader.parameters_texts(ctx);
         Ok(Branch(vec![
             Line(fmt!(ctx,
-                "pub fn get_annotation_types<{0}>(child_index: Option<u16>, index: u32) -> {capnp}::introspect::Type {1} {{",
+                "pub(crate) fn get_annotation_types<{0}>(child_index: Option<u16>, index: u32) -> {capnp}::introspect::Type {1} {{",
                 params.params, params.where_clause
             )),
             indent(body),
@@ -1834,7 +1848,7 @@ fn generate_members_by_discriminant(
     }
     union_member_indexes.sort();
 
-    let mut nonunion_string: String = "pub static NONUNION_MEMBERS : &[u16] = &[".into();
+    let mut nonunion_string: String = "pub(crate) static NONUNION_MEMBERS : &[u16] = &[".into();
     for idx in 0..nonunion_member_indexes.len() {
         nonunion_string += &format!("{}", nonunion_member_indexes[idx]);
         if idx + 1 < nonunion_member_indexes.len() {
@@ -1843,7 +1857,8 @@ fn generate_members_by_discriminant(
     }
     nonunion_string += "];";
 
-    let mut members_by_disc: String = "pub static MEMBERS_BY_DISCRIMINANT : &[u16] = &[".into();
+    let mut members_by_disc: String =
+        "pub(crate) static MEMBERS_BY_DISCRIMINANT : &[u16] = &[".into();
     for idx in 0..union_member_indexes.len() {
         let (disc, index) = union_member_indexes[idx];
         assert_eq!(idx, disc as usize);
@@ -1872,7 +1887,8 @@ fn generate_members_by_name(
     }
     members_by_name.sort_by_key(|k| k.0);
 
-    let mut members_by_name_string: String = "pub static MEMBERS_BY_NAME : &[u16] = &[".into();
+    let mut members_by_name_string: String =
+        "pub(crate) static MEMBERS_BY_NAME : &[u16] = &[".into();
     for (i, (_, index)) in members_by_name.iter().enumerate() {
         members_by_name_string += &format!("{}", *index);
         if i + 1 < members_by_name.len() {
@@ -2038,7 +2054,7 @@ fn generate_node(
                 ctx,
                 "ENCODED_NODE",
                 *node_reader,
-                crate::pointer_constants::WordArrayDeclarationOptions { public: true },
+                crate::pointer_constants::WordArrayDeclarationOptions { pub_crate: true },
             )?);
 
             private_mod_interior.push(generate_get_field_types(ctx, *node_reader)?);
@@ -2047,8 +2063,8 @@ fn generate_node(
             // `static` instead of `const` so that this has a fixed memory address
             // and we can check equality of `RawStructSchema` values by comparing pointers.
             private_mod_interior.push(Branch(vec![
-                Line(fmt!(ctx, "pub static ARENA: {capnp}::private::arena::GeneratedCodeArena = {capnp}::private::arena::GeneratedCodeArena::new(&ENCODED_NODE);")),
-                Line(fmt!(ctx,"pub static RAW_SCHEMA: {capnp}::introspect::RawStructSchema = {capnp}::introspect::RawStructSchema::new(")),
+                Line(fmt!(ctx, "pub(crate) static ARENA: {capnp}::private::arena::GeneratedCodeArena = {capnp}::private::arena::GeneratedCodeArena::new(&ENCODED_NODE);")),
+                Line(fmt!(ctx,"pub(crate) static RAW_SCHEMA: {capnp}::introspect::RawStructSchema = {capnp}::introspect::RawStructSchema::new(")),
                 indent(vec![
                     Line("&ARENA,".into()),
                     Line("NONUNION_MEMBERS,".into()),
@@ -2169,7 +2185,7 @@ fn generate_node(
                    line("}")]);
 
             private_mod_interior.push(Line(format!(
-                "pub const TYPE_ID: u64 = {};",
+                "pub(crate) const TYPE_ID: u64 = {};",
                 format_u64(node_id)
             )));
 
@@ -2521,7 +2537,7 @@ fn generate_node(
                         ctx,
                         "ENCODED_NODE",
                         *node_reader,
-                        crate::pointer_constants::WordArrayDeclarationOptions { public: true },
+                        crate::pointer_constants::WordArrayDeclarationOptions { pub_crate: true },
                     )?,
                     generate_get_annotation_types(ctx, *node_reader)?,
                 ]),
@@ -2549,7 +2565,7 @@ fn generate_node(
             };
 
             private_mod_interior.push(Line(format!(
-                "pub const TYPE_ID: u64 = {};",
+                "pub(crate) const TYPE_ID: u64 = {};",
                 format_u64(node_id)
             )));
 
@@ -2932,7 +2948,7 @@ fn generate_node(
                     line("}")]));
 
             mod_interior.push(Branch(vec![
-                line("pub mod _private {"),
+                line("pub(crate) mod _private {"),
                 indent(private_mod_interior),
                 line("}"),
             ]));

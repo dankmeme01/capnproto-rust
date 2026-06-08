@@ -19,31 +19,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-use futures::{Future, FutureExt};
+capnp::generated_code!(pub mod echo_capnp);
+capnp::generated_code!(pub mod shared_secret_capnp);
 
-use std::cell::RefCell;
-use std::rc::Rc;
+pub mod client;
+pub mod server;
 
-pub(crate) fn split<F, T1, T2, E>(
-    f: F,
-) -> (
-    impl Future<Output = Result<T1, E>>,
-    impl Future<Output = Result<T2, E>>,
-)
-where
-    F: Future<Output = Result<(T1, T2), E>>,
-    E: Clone,
-{
-    let shared = f
-        .map(|r| {
-            let (v1, v2) = r?;
-            Ok(Rc::new(RefCell::new((Some(v1), Some(v2)))))
-        })
-        .shared();
-    (
-        shared
-            .clone()
-            .map(|r| Ok::<T1, E>(r?.borrow_mut().0.take().unwrap())),
-        shared.map(|r| Ok::<T2, E>(r?.borrow_mut().1.take().unwrap())),
-    )
+#[tokio::main(flavor = "current_thread")]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let args: Vec<String> = ::std::env::args().collect();
+    if args.len() >= 2 {
+        match &args[1][..] {
+            "client" => return client::main().await,
+            "server" => return server::main().await,
+            _ => (),
+        }
+    }
+
+    println!("usage: {} [client | server] ADDRESS", args[0]);
+    Ok(())
 }

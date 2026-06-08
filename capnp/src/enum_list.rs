@@ -215,10 +215,13 @@ impl<'a, T: Copy + Into<u16>> crate::traits::SetterInput<Owned<T>> for &'a [T] {
     ) -> Result<()> {
         let builder = pointer.init_list(
             crate::private::layout::ElementSize::TwoBytes,
-            value.len() as u32,
+            value
+                .len()
+                .try_into()
+                .expect("list len too big to fit in u32"),
         );
         for (idx, v) in value.iter().enumerate() {
-            <u16 as PrimitiveElement>::set(&builder, idx as u32, (*v).into())
+            <u16 as PrimitiveElement>::set(&builder, idx.try_into().unwrap(), (*v).into())
         }
         Ok(())
     }
@@ -296,9 +299,6 @@ impl<T: Copy + TryFrom<u16, Error = NotInSchema> + crate::introspect::Introspect
     for Reader<'_, T>
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Debug::fmt(
-            &::core::convert::Into::<crate::dynamic_value::Reader<'_>>::into(*self),
-            f,
-        )
+        core::fmt::Debug::fmt(&crate::dynamic_value::Reader::from(*self), f)
     }
 }

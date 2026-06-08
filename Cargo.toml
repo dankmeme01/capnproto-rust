@@ -24,6 +24,7 @@ members = [
     "capnp-rpc/examples/hello-world",
     "capnp-rpc/examples/calculator",
     "capnp-rpc/examples/pubsub",
+    "capnp-rpc/examples/shared-secret-capability",
     "capnp-rpc/examples/streaming",
     "capnp-rpc/examples/reconnect",
     "capnp-rpc/test",
@@ -36,4 +37,9 @@ default-members = [
     "capnpc",
 ]
 
-[workspace.lints]
+[workspace.lints.rust]
+unreachable_pub = "deny"
+
+[workspace.lints.clippy]
+type_complexity = "allow"
+missing_safety_doc = "allow"

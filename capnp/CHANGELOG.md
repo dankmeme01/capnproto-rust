@@ -1,3 +1,16 @@
+## v0.25.5
+- Add `impl<T: FromClientHook> FromTypelessPipeline for T`, to support pipelining
+  on generic capabilities.
+
+## v0.25.4
+- Fix clippy::cast_possible_truncation warnings.
+
+## v0.25.3
+- Fix iterator size_hint() so that it returns the remaining size, not the initial size.
+
+## v0.25.2
+- Prevent undefined behavior on zero-sized alloc in HeapAllocator.
+
 ## v0.25.1
 - Prevent multiple potential integer overflows in message construction logic.
 

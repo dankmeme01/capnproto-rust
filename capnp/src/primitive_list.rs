@@ -317,10 +317,15 @@ where
         value: &'a [T],
         _canonicalize: bool,
     ) -> Result<()> {
-        let builder =
-            pointer.init_list(<T as PrimitiveElement>::element_size(), value.len() as u32);
+        let builder = pointer.init_list(
+            <T as PrimitiveElement>::element_size(),
+            value
+                .len()
+                .try_into()
+                .expect("list size too large to fit in a u32"),
+        );
         for (idx, v) in value.iter().enumerate() {
-            PrimitiveElement::set(&builder, idx as u32, *v)
+            PrimitiveElement::set(&builder, u32::try_from(idx).unwrap(), *v)
         }
         Ok(())
     }
@@ -404,9 +409,6 @@ impl<T: Copy + PrimitiveElement + crate::introspect::Introspect> core::fmt::Debu
     for Reader<'_, T>
 {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        core::fmt::Debug::fmt(
-            &::core::convert::Into::<crate::dynamic_value::Reader<'_>>::into(*self),
-            f,
-        )
+        core::fmt::Debug::fmt(&crate::dynamic_value::Reader::from(*self), f)
     }
 }
